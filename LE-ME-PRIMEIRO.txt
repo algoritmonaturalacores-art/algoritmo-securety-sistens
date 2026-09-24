@@ -1,0 +1,64 @@
+ALGORITMO SECURETY SISTENS - versao experimental 0.1.0
+Nuno Camara Freelancer - Algoritmo Natural Sustentabilidade Digital
+
+COMECAR
+1. Usa esta pasta completa. Se receberes uma copia em ZIP, extrai todos os ficheiros.
+2. Precisas de Python 3.10 ou superior: https://www.python.org/downloads/windows/
+   Durante a instalacao do Python, ativa Add python.exe to PATH.
+3. Abre INICIAR.cmd. Funciona diretamente da pasta, sem instalar outros pacotes.
+4. Se quiseres copiar para uma pasta permanente, abre INSTALAR.cmd.
+   Nao e um instalador EXE assinado. Nao e necessario administrador.
+
+OS CINCO AGENTES IA
+Guardiao Google; Analista do Dispositivo; Curador de Integracoes;
+Investigador de Qualidade; Revisor de Seguranca.
+Sao cinco perfis sobre a mesma API Groq, acionados individualmente no menu 3.
+O investigador usa o contexto de pesquisa fornecido; nao pesquisa a internet sozinho.
+Nao ha processos autonomos, remediacao ou monitorizacao em segundo plano.
+
+API COM PLANO GRATUITO
+Cria uma conta Free na Groq e gera uma chave em https://console.groq.com/keys
+Nao faças upgrade para um plano pago para este uso. Confirma o plano na consola.
+Seleciona menu 3 e um agente. O programa mostra o conteudo antes de enviar.
+Escreve ENVIAR e introduz a chave quando for pedida. A chave nao aparece no ecra.
+Nao envies a chave para esta conversa nem a escrevas nos ficheiros.
+A chave e usada na memoria e nao e guardada pela aplicacao.
+Python nao garante apagamento criptografico da memoria; fecha o programa no fim.
+
+Modelo configurado: openai/gpt-oss-20b, endpoint Groq Chat Completions.
+Consulta de documentacao em 24/09/2026. Planos e modelos podem mudar.
+O programa nao consegue verificar a faturacao da conta nem impor custo zero
+se usares uma chave associada a plano pago. Gratuitidade depende do plano Free.
+Limite local: uma chamada por pedido, no maximo 1800 tokens de resposta,
+tempo de espera de 35 segundos e nenhuma repeticao automatica.
+Ao atingir limites (HTTP 429), para; nao troca para outro fornecedor/modelo pago.
+Limites: https://console.groq.com/docs/rate-limits
+Modelos: https://console.groq.com/docs/models
+Privacidade do fornecedor: https://console.groq.com/docs/your-data
+
+DADOS E SEGURANCA
+Nao le emails, ficheiros pessoais, passwords, cookies, IPs ou nomes de dispositivos.
+O diagnostico consulta apenas campos de estado do Defender e contagem de perfis firewall.
+No menu IA, o texto apresentado e enviado a Groq; nos agentes dispositivo/revisor,
+inclui os campos de diagnostico permitidos, sem identificadores.
+As respostas IA sao orientacao nao verificada. Nunca sao executadas como comandos.
+Nao ha logs persistentes nem historial de conversas; diagnostico so na sessao.
+Nao ha login Google. O menu Google mostra enderecos oficiais para revisao manual.
+
+LIMITES DESTA VERSAO
+E um assistente de consola, nao uma aplicacao grafica nem antivirus/VPN/EDR.
+Nao inclui os motores Bitwarden, Bitdefender, Norton, Malwarebytes, 1Password,
+Dashlane, Proton VPN, NordVPN, ExpressVPN, CrowdStrike ou SentinelOne.
+O estado Defender nao substitui uma analise de malware e pode estar indisponivel.
+Nenhuma afirmacao de melhor software do mercado, certificacao ou protecao absoluta.
+Os conectores API foram testados com respostas simuladas; falta testar uma chamada
+real com a tua chave. Nao foram utilizadas chaves tuas na preparacao deste pacote.
+
+DESINSTALAR
+Fecha o programa e elimina apenas a pasta em que o instalaste.
+Nao foram criados servicos, tarefas de arranque, atalhos ou entradas de registo.
+
+TESTES (PARA QUEM DESENVOLVE)
+python -m unittest discover -s tests -v
+python programa.py --verificar
+python programa.py --diagnostico
