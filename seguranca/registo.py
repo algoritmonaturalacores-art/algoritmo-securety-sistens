@@ -18,9 +18,9 @@ INICIO_CADEIA = "0" * 64
 ITERACOES = 600_000
 MAX_FALHAS = 5
 BLOQUEIO_SEGUNDOS = 300
-
-
-# A vigilancia e o porteiro do Claude correm em threads do mesmo processo e partilham estes ficheiros.
+BLOQUEIO_MAXIMO = 3600
+# A vigilancia e o porteiro do Claude correm em fios diferentes do mesmo processo: um trinco partilhado
+# evita que uma escrita apague a outra (o _bloqueio de ficheiro so separa processos).
 _TRINCO = threading.RLock()
 
 
@@ -266,66 +266,74 @@ class Registo:
         except (KeyError, ValueError, TypeError):
             return False, "Ficheiro de acesso danificado."
         if hmac.compare_digest(derivada.hex(), dados["hash"]):
-            dados["falhas"], dados["bloqueado_ate"] = 0, 0
+            dados["falhas"], dados["bloqueios"], dados["bloqueado_ate"] = 0, 0, 0
             self._escrever_json(self.acesso_f, dados)
             return True, "ok"
         return False, self._falha(dados, "Palavra-passe errada")
 
-    def _falha(self, dados, motivo):
-        dados["falhas"] = int(dados.get("falhas", 0)) + 1
-        mensagem = f"{motivo} ({dados['falhas']}/{MAX_FALHAS})."
-        if dados["falhas"] >= MAX_FALHAS:
-            dados["falhas"], dados["bloqueado_ate"] = 0, time.time() + BLOQUEIO_SEGUNDOS
-            mensagem = "Demasiadas tentativas. Bloqueado durante 5 minutos."
-        self._escrever_json(self.acesso_f, dados)
-        return mensagem
-
-    # ---------- segundo fator (codigo de 6 digitos) ----------
+    # ---------- segundo fator: codigo de 6 digitos (Google Authenticator) ----------
     def dois_fatores_configurado(self):
         return bool(self._ler_json(self.dois_fatores_f, {}).get("segredo"))
 
-    def definir_dois_fatores(self, segredo, hashes_recuperacao, proteger=totp.proteger):
-        self._escrever_json(self.dois_fatores_f, {"algoritmo": "totp-sha1-6-30", "segredo": proteger(segredo),
+    def definir_dois_fatores(self, segredo, hashes_recuperacao):
+        self._escrever_json(self.dois_fatores_f, {"algoritmo": "totp-sha1-6-30", "segredo": totp.proteger(segredo),
                                                   "ultimo_passo": -1, "recuperacao": list(hashes_recuperacao)})
         restringir_a_administradores(self.dois_fatores_f)
 
-    def verificar_dois_fatores(self, palavra, codigo, instante=None, desproteger=totp.desproteger):
-        """Palavra-passe E codigo (ou codigo de recuperacao). Falhas de qualquer um contam para o bloqueio."""
-        acesso = self._ler_json(self.acesso_f, {})
+    def verificar_codigo(self, codigo, instante=None):
+        """Codigo de 6 digitos (Google Authenticator) ou codigo de recuperacao. 5 falhas bloqueiam 5 minutos;
+        este bloqueio e separado do da palavra-passe do menu."""
         fatores = self._ler_json(self.dois_fatores_f, {})
-        if not acesso.get("hash") or not fatores.get("segredo"):
+        if not fatores.get("segredo"):
             return False, "Protecao com codigo ainda nao configurada."
         agora = time.time()
-        if acesso.get("bloqueado_ate", 0) > agora:
-            return False, f"Bloqueado por tentativas falhadas. Tenta daqui a {int(acesso['bloqueado_ate'] - agora) + 1} segundos."
+        if fatores.get("bloqueado_ate", 0) > agora:
+            return False, f"Bloqueado por tentativas falhadas. Tenta daqui a {int(fatores['bloqueado_ate'] - agora) + 1} segundos."
         try:
-            derivada = hashlib.pbkdf2_hmac("sha256", palavra.encode("utf-8"), bytes.fromhex(acesso["sal"]), int(acesso["iteracoes"]))
-            segredo = desproteger(fatores["segredo"])
-        except (KeyError, ValueError, TypeError, OSError):
+            segredo = totp.desproteger(fatores["segredo"])
+            ultimo = int(fatores.get("ultimo_passo", -1))
+        except (KeyError, ValueError, TypeError, OSError, UnicodeDecodeError):
             return False, "Ficheiro de acesso danificado."
-        if not hmac.compare_digest(derivada.hex(), acesso["hash"]):
-            return False, self._falha(acesso, "Palavra-passe ou codigo errado")
-        passo = totp.verificar(segredo, codigo, int(fatores.get("ultimo_passo", -1)), instante)
-        if passo is not None:
-            fatores["ultimo_passo"] = passo
+        passo = totp.verificar(segredo, codigo, instante=instante, ultimo_passo=ultimo)
+        recuperacao = totp.hash_recuperacao(codigo)
+        usa_recuperacao = (passo is None and sum(c.isalnum() for c in str(codigo)) == 12
+                           and recuperacao in fatores.get("recuperacao", []))
+        if passo is None and not usa_recuperacao:
+            return False, self._falha(fatores, "Codigo errado", self.dois_fatores_f)
+        if usa_recuperacao:
+            fatores["recuperacao"].remove(recuperacao)
         else:
-            h = totp.hash_recuperacao(str(codigo))
-            if len(str(codigo).strip()) < 12 or h not in fatores.get("recuperacao", []):
-                return False, self._falha(acesso, "Palavra-passe ou codigo errado")
-            fatores["recuperacao"].remove(h)
+            fatores["ultimo_passo"] = passo
+        fatores["falhas"], fatores["bloqueios"], fatores["bloqueado_ate"] = 0, 0, 0
         self._escrever_json(self.dois_fatores_f, fatores)
-        acesso["falhas"], acesso["bloqueado_ate"] = 0, 0
-        self._escrever_json(self.acesso_f, acesso)
-        return True, "ok" if passo is not None else f"Codigo de recuperacao usado. Restam {len(fatores['recuperacao'])}."
+        return True, f"Codigo de recuperacao usado. Restam {len(fatores['recuperacao'])}." if usa_recuperacao else "ok"
+
+    def _falha(self, dados, motivo, ficheiro=None):
+        dados["falhas"] = int(dados.get("falhas", 0)) + 1
+        mensagem = f"{motivo} ({dados['falhas']}/{MAX_FALHAS})."
+        if dados["falhas"] >= MAX_FALHAS:
+            # Cada bloqueio seguido dura o dobro (5, 10, 20, 40 min), ate 1 hora: adivinhar deixa de compensar.
+            bloqueios = int(dados.get("bloqueios", 0))
+            segundos = min(BLOQUEIO_SEGUNDOS * 2 ** bloqueios, BLOQUEIO_MAXIMO)
+            dados["falhas"], dados["bloqueios"], dados["bloqueado_ate"] = 0, bloqueios + 1, time.time() + segundos
+            mensagem = f"Demasiadas tentativas. Bloqueado durante {segundos // 60} minutos."
+        self._escrever_json(ficheiro or self.acesso_f, dados)
+        return mensagem
+
+
+def em_pasta_protegida(caminho):
+    protegida = Path(os.environ.get("ProgramData", r"C:\ProgramData")).resolve()
+    return protegida in Path(caminho).resolve().parents
 
 
 def restringir_a_administradores(caminho):
-    """Na pasta protegida, so Administradores e SYSTEM podem ler o segredo (utilizadores normais nem o veem)."""
-    protegida = Path(os.environ.get("ProgramData", r"C:\ProgramData")).resolve()
-    if os.name != "nt" or protegida not in Path(caminho).resolve().parents:
+    """Na pasta protegida, so Administradores e SYSTEM podem ler a chave (um utilizador normal nem a ve)."""
+    if os.name != "nt" or not em_pasta_protegida(caminho):
         return
-    subprocess.run(["icacls", str(caminho), "/inheritance:r", "/grant:r", "*S-1-5-32-544:F", "*S-1-5-18:F"],
-                   capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    resultado = subprocess.run(["icacls", str(caminho), "/inheritance:r", "/grant:r", "*S-1-5-32-544:F", "*S-1-5-18:F"],
+                               capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if resultado.returncode != 0:
+        raise RegistoError("Nao foi possivel restringir o ficheiro da chave a administradores.")
 
 
 def validar_palavra_passe(palavra):

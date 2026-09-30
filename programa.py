@@ -15,7 +15,7 @@ from seguranca.agentes import AGENTS, messages_for
 from seguranca.api import APIError, MODEL, ask, safe_text
 from seguranca.diagnostico import collect, explain
 from seguranca.ps import e_admin
-from seguranca.registo import Registo, RegistoError, validar_palavra_passe
+from seguranca.registo import Registo, RegistoError, em_pasta_protegida, validar_palavra_passe
 
 ROOT = Path(__file__).resolve().parent
 ASSINATURA = "Nuno Camara | Algoritmo Natural - Sustentabilidade Digital"
@@ -266,7 +266,7 @@ def run_agent(diagnostic):
 
 
 def menu_claude(registo):
-    """Verificacao em dois passos (palavra-passe + codigo Ente Auth) para abrir o Claude Code e o Claude Desktop."""
+    """Codigo de 6 digitos (Ente Auth) para abrir o Claude Code e o Claude Desktop."""
     print("\nPROTEGER O CLAUDE COM CODIGO DE 6 DIGITOS (Ente Auth)")
     protegida = registo.pasta.resolve() == tarefa.ESTADO.resolve()
     ligado = protegida and registo.dois_fatores_configurado()
@@ -309,7 +309,7 @@ def menu_claude(registo):
         registo.definir_dois_fatores(segredo, hashes)
         segredo = None
         tarefa.reiniciar()
-        print("\nLIGADO. A partir de agora o Claude Code e o Claude Desktop so abrem com palavra-passe + codigo.")
+        print("\nLIGADO. A partir de agora o Claude Code e o Claude Desktop so abrem com o codigo da Ente Auth.")
         print("O que ja estiver aberto continua aberto.")
     elif escolha == "2":
         valor = input("Minutos sem voltar a pedir depois de um codigo certo (0 = pedir sempre; normal 240): ").strip()
@@ -342,6 +342,7 @@ def menu(registo):
               "\n8. Estado rapido do Defender e firewall"
               "\n9. Rever conta Google"
               "\n10. Consultar agente IA (Groq Free, opcional)"
+              "\n11. Proteger o Claude com codigo de 6 digitos (Ente Auth)"
               "\n0. Sair")
         choice = input("Escolha: ").strip()
         try:
@@ -400,7 +401,8 @@ def main():
         print(json.dumps({"pontuacao": exposicao.pontuacao(achados), "achados": achados}, ensure_ascii=False, indent=2))
     elif args.vigiar:
         registo = Registo()
-        if porteiro.ativo(registo):
+        # O porteiro so corre a partir da pasta protegida: fora dela qualquer programa podia trocar a chave.
+        if em_pasta_protegida(registo.pasta) and registo.dois_fatores_configurado():
             threading.Thread(target=vigilancia.vigiar, args=(registo,), daemon=True).start()
             porteiro.Porteiro(registo).correr()
         else:

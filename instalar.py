@@ -12,7 +12,7 @@ FILES = ("programa.py", "INICIAR.cmd", "INSTALAR.cmd", "instalar.py", "LE-ME-PRI
          "seguranca/ps.py", "seguranca/exposicao.py", "seguranca/eventos.py", "seguranca/registo.py",
          "seguranca/notificar.py", "seguranca/vigilancia.py", "seguranca/endurecer.py", "seguranca/tarefa.py",
          "seguranca/totp.py", "seguranca/porteiro.py",
-         "tests/test_vigilancia.py", "LICENSE", "SECURITY.md", "CHANGELOG.md")
+         "tests/test_vigilancia.py", "tests/test_totp.py", "tests/test_porteiro.py", "tests/test_dois_fatores.py", "LICENSE", "SECURITY.md", "CHANGELOG.md")
 
 
 def install(target):
