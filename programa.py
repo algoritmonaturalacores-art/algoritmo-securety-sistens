@@ -4,12 +4,13 @@ import argparse
 import getpass
 import json
 import sys
+import threading
 import time
 import warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from seguranca import VERSION, endurecer, eventos, exposicao, notificar, tarefa, vigilancia
+from seguranca import VERSION, endurecer, eventos, exposicao, notificar, porteiro, tarefa, totp, vigilancia
 from seguranca.agentes import AGENTS, messages_for
 from seguranca.api import APIError, MODEL, ask, safe_text
 from seguranca.diagnostico import collect, explain
@@ -264,6 +265,67 @@ def run_agent(diagnostic):
         key = None
 
 
+def menu_claude(registo):
+    """Verificacao em dois passos (palavra-passe + codigo Ente Auth) para abrir o Claude Code e o Claude Desktop."""
+    print("\nPROTEGER O CLAUDE COM CODIGO DE 6 DIGITOS (Ente Auth)")
+    protegida = registo.pasta.resolve() == tarefa.ESTADO.resolve()
+    ligado = protegida and registo.dois_fatores_configurado()
+    config = registo.config()
+    print(f"Estado: {'LIGADO' if ligado else 'desligado'}"
+          f" | pedir de novo apos {config.get('claude_validade_minutos', porteiro.VALIDADE_OMISSAO)} minutos")
+    if not protegida:
+        print("Primeiro instala a vigilancia automatica (opcao 7): o porteiro corre dentro dela, protegido.")
+        return
+    if not e_admin():
+        print("Abre o programa como administrador para mudar esta protecao.")
+        return
+    escolha = input("1. Ligar / trocar codigo  2. Mudar tempo sem voltar a pedir  3. Desligar  Enter = voltar\n> ").strip()
+    if escolha == "1":
+        segredo = totp.novo_segredo()
+        print("\nNo telemovel, abre a app Ente Auth:")
+        print("  1) Carrega em  +  e escolhe 'Introduzir detalhes manualmente' (Enter details manually).")
+        print("  2) Emissor: Algoritmo Natural    Conta: Claude no PC")
+        print("  3) Chave secreta (copia exatamente, os espacos nao contam):\n")
+        print("        " + totp.formatar(segredo) + "\n")
+        print("  Tipo TOTP, 6 digitos, 30 segundos, SHA1 (sao os valores normais da app).")
+        print("Nao fotografes nem partilhes esta chave: quem a tiver consegue gerar os codigos.")
+        passo = None
+        for _ in range(3):
+            passo = totp.verificar(segredo, input("\nEscreve o codigo que a Ente Auth mostra agora: ").strip())
+            if passo is not None:
+                break
+            print("Codigo nao confere. Confirma a chave e a hora do telemovel (automatica).")
+        if passo is None:
+            print("Nada foi alterado.")
+            return
+        codigos, hashes = totp.codigos_recuperacao()
+        print("\nCODIGOS DE RECUPERACAO (cada um serve UMA vez, se perderes o telemovel).")
+        print("Escreve-os em papel e guarda num sitio seguro:\n")
+        for c in codigos:
+            print("        " + c)
+        if not confirmar("\nJa guardaste os codigos de recuperacao?"):
+            print("Nada foi alterado.")
+            return
+        registo.definir_dois_fatores(segredo, hashes)
+        segredo = None
+        tarefa.reiniciar()
+        print("\nLIGADO. A partir de agora o Claude Code e o Claude Desktop so abrem com palavra-passe + codigo.")
+        print("O que ja estiver aberto continua aberto.")
+    elif escolha == "2":
+        valor = input("Minutos sem voltar a pedir depois de um codigo certo (0 = pedir sempre; normal 240): ").strip()
+        if valor.isdigit() and int(valor) <= 1440:
+            config["claude_validade_minutos"] = int(valor)
+            registo.guardar_config(config)
+            tarefa.reiniciar()
+            print("Guardado.")
+    elif escolha == "3" and ligado and confirmar("Desligar a protecao do Claude?"):
+        registo.dois_fatores_f.unlink(missing_ok=True)
+        tarefa.reiniciar()
+        registo.adicionar({"nivel": "aviso", "tipo": "porteiro-claude", "titulo": "Protecao do Claude desligada",
+                           "detalhe": "Desligada no menu, como administrador."})
+        print("Desligada.")
+
+
 def menu(registo):
     diagnostic = None
     while True:
@@ -310,6 +372,8 @@ def menu(registo):
                 google_checklist()
             elif choice == "10":
                 run_agent(diagnostic)
+            elif choice == "11":
+                menu_claude(registo)
             else:
                 print("Escolha uma opcao apresentada.")
         except RegistoError as erro:
@@ -335,7 +399,12 @@ def main():
         achados = exposicao.analisar(dados)
         print(json.dumps({"pontuacao": exposicao.pontuacao(achados), "achados": achados}, ensure_ascii=False, indent=2))
     elif args.vigiar:
-        vigilancia.vigiar(Registo())
+        registo = Registo()
+        if porteiro.ativo(registo):
+            threading.Thread(target=vigilancia.vigiar, args=(registo,), daemon=True).start()
+            porteiro.Porteiro(registo).correr()
+        else:
+            vigilancia.vigiar(registo)
     else:
         registo = Registo()
         if not entrar(registo):

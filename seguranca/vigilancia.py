@@ -57,7 +57,7 @@ def ciclo(registo, config, forcar_exposicao=False, ler_eventos=eventos.ler, reco
                 novos.extend(exposicao.diferencas(anterior, atual))
                 estado["ultima_assinatura"] = atual
         estado["ultima_exposicao"] = time.time()
-    registo.guardar_estado({**registo.estado(), **estado})
+    registo.atualizar_estado(estado)
     # Todos os alertas ficam registados; so as notificacoes sao limitadas, para nao inundar o ecra.
     registados = []
     for posicao, alerta in enumerate(sorted(novos, key=lambda a: -notificar.ORDEM.get(a.get("nivel"), 0))):

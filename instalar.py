@@ -11,6 +11,7 @@ FILES = ("programa.py", "INICIAR.cmd", "INSTALAR.cmd", "instalar.py", "LE-ME-PRI
          "seguranca/__init__.py", "seguranca/diagnostico.py", "seguranca/agentes.py", "seguranca/api.py",
          "seguranca/ps.py", "seguranca/exposicao.py", "seguranca/eventos.py", "seguranca/registo.py",
          "seguranca/notificar.py", "seguranca/vigilancia.py", "seguranca/endurecer.py", "seguranca/tarefa.py",
+         "seguranca/totp.py", "seguranca/porteiro.py",
          "tests/test_vigilancia.py", "LICENSE", "SECURITY.md", "CHANGELOG.md")
 
 

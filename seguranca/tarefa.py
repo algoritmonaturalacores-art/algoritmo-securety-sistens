@@ -13,6 +13,7 @@ ESTADO = Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "AlgoritmoNatu
 FICHEIROS = ("programa.py", "seguranca/__init__.py", "seguranca/ps.py", "seguranca/diagnostico.py", "seguranca/exposicao.py",
              "seguranca/eventos.py", "seguranca/registo.py", "seguranca/notificar.py", "seguranca/vigilancia.py",
              "seguranca/endurecer.py", "seguranca/tarefa.py", "seguranca/agentes.py", "seguranca/api.py",
+             "seguranca/totp.py", "seguranca/porteiro.py",
              "LICENSE", "README.md", "LE-ME-PRIMEIRO.txt")
 
 REGISTAR = r"""
@@ -28,6 +29,11 @@ Start-ScheduledTask -TaskName $env:AN_TAREFA
 REMOVER = r"""
 Stop-ScheduledTask -TaskName $env:AN_TAREFA -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $env:AN_TAREFA -Confirm:$false -ErrorAction SilentlyContinue
+"""
+REINICIAR = r"""
+Stop-ScheduledTask -TaskName $env:AN_TAREFA -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
+Start-ScheduledTask -TaskName $env:AN_TAREFA
 """
 ESTADO_TAREFA = r"""
 $t = Get-ScheduledTask -TaskName $env:AN_TAREFA -ErrorAction SilentlyContinue
@@ -98,6 +104,15 @@ def remover():
         raise TarefaError(str(erro)) from None
     if DESTINO.exists():
         shutil.rmtree(DESTINO)
+
+
+def reiniciar():
+    """A vigilancia le a protecao do Claude ao arrancar: reinicia para aplicar alteracoes."""
+    try:
+        executar(REINICIAR, timeout=60, json_saida=False, parametros={"AN_TAREFA": TAREFA})
+        return True
+    except PSError:
+        return False
 
 
 def estado():

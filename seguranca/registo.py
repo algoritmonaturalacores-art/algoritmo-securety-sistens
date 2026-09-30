@@ -4,16 +4,24 @@ import hmac
 import json
 import os
 import secrets
+import subprocess
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+from . import totp
 
 NOME = "AlgoritmoSecuretySistens"
 INICIO_CADEIA = "0" * 64
 ITERACOES = 600_000
 MAX_FALHAS = 5
 BLOQUEIO_SEGUNDOS = 300
+
+
+# A vigilancia e o porteiro do Claude correm em threads do mesmo processo e partilham estes ficheiros.
+_TRINCO = threading.RLock()
 
 
 class RegistoError(Exception):
@@ -73,6 +81,7 @@ class Registo:
         self.config_f = self.pasta / "config.json"
         self.acesso_f = self.pasta / "acesso.json"
         self.estado_f = self.pasta / "estado.json"
+        self.dois_fatores_f = self.pasta / "dois_fatores.json"
 
     # ---------- utilidades ----------
     def _garantir(self):
@@ -89,6 +98,10 @@ class Registo:
             return omissao
 
     def _escrever_json(self, caminho, valor):
+        with _TRINCO:
+            self._escrever_json_sem_trinco(caminho, valor)
+
+    def _escrever_json_sem_trinco(self, caminho, valor):
         self._garantir()
         temporario = caminho.with_suffix(".tmp")
         try:
@@ -112,6 +125,10 @@ class Registo:
 
     def guardar_estado(self, estado):
         self._escrever_json(self.estado_f, estado)
+
+    def atualizar_estado(self, mudancas):
+        with _TRINCO:
+            self.guardar_estado({**self.estado(), **mudancas})
 
     # ---------- alertas encadeados ----------
     def _linhas(self):
@@ -140,7 +157,7 @@ class Registo:
 
     def adicionar(self, alerta):
         self._garantir()
-        with _bloqueio(self.pasta):
+        with _TRINCO, _bloqueio(self.pasta):
             return self._adicionar(alerta)
 
     def _adicionar(self, alerta):
@@ -162,7 +179,7 @@ class Registo:
         if estado not in ("visto", "conhecido", "suspeito"):
             raise RegistoError("Estado de marcacao invalido.")
         self._garantir()
-        with _bloqueio(self.pasta):
+        with _TRINCO, _bloqueio(self.pasta):
             return self._marcar(ids, estado, nota)
 
     def _marcar(self, ids, estado, nota):
@@ -252,13 +269,63 @@ class Registo:
             dados["falhas"], dados["bloqueado_ate"] = 0, 0
             self._escrever_json(self.acesso_f, dados)
             return True, "ok"
+        return False, self._falha(dados, "Palavra-passe errada")
+
+    def _falha(self, dados, motivo):
         dados["falhas"] = int(dados.get("falhas", 0)) + 1
-        mensagem = f"Palavra-passe errada ({dados['falhas']}/{MAX_FALHAS})."
+        mensagem = f"{motivo} ({dados['falhas']}/{MAX_FALHAS})."
         if dados["falhas"] >= MAX_FALHAS:
-            dados["falhas"], dados["bloqueado_ate"] = 0, agora + BLOQUEIO_SEGUNDOS
+            dados["falhas"], dados["bloqueado_ate"] = 0, time.time() + BLOQUEIO_SEGUNDOS
             mensagem = "Demasiadas tentativas. Bloqueado durante 5 minutos."
         self._escrever_json(self.acesso_f, dados)
-        return False, mensagem
+        return mensagem
+
+    # ---------- segundo fator (codigo de 6 digitos) ----------
+    def dois_fatores_configurado(self):
+        return bool(self._ler_json(self.dois_fatores_f, {}).get("segredo"))
+
+    def definir_dois_fatores(self, segredo, hashes_recuperacao, proteger=totp.proteger):
+        self._escrever_json(self.dois_fatores_f, {"algoritmo": "totp-sha1-6-30", "segredo": proteger(segredo),
+                                                  "ultimo_passo": -1, "recuperacao": list(hashes_recuperacao)})
+        restringir_a_administradores(self.dois_fatores_f)
+
+    def verificar_dois_fatores(self, palavra, codigo, instante=None, desproteger=totp.desproteger):
+        """Palavra-passe E codigo (ou codigo de recuperacao). Falhas de qualquer um contam para o bloqueio."""
+        acesso = self._ler_json(self.acesso_f, {})
+        fatores = self._ler_json(self.dois_fatores_f, {})
+        if not acesso.get("hash") or not fatores.get("segredo"):
+            return False, "Protecao com codigo ainda nao configurada."
+        agora = time.time()
+        if acesso.get("bloqueado_ate", 0) > agora:
+            return False, f"Bloqueado por tentativas falhadas. Tenta daqui a {int(acesso['bloqueado_ate'] - agora) + 1} segundos."
+        try:
+            derivada = hashlib.pbkdf2_hmac("sha256", palavra.encode("utf-8"), bytes.fromhex(acesso["sal"]), int(acesso["iteracoes"]))
+            segredo = desproteger(fatores["segredo"])
+        except (KeyError, ValueError, TypeError, OSError):
+            return False, "Ficheiro de acesso danificado."
+        if not hmac.compare_digest(derivada.hex(), acesso["hash"]):
+            return False, self._falha(acesso, "Palavra-passe ou codigo errado")
+        passo = totp.verificar(segredo, codigo, int(fatores.get("ultimo_passo", -1)), instante)
+        if passo is not None:
+            fatores["ultimo_passo"] = passo
+        else:
+            h = totp.hash_recuperacao(str(codigo))
+            if len(str(codigo).strip()) < 12 or h not in fatores.get("recuperacao", []):
+                return False, self._falha(acesso, "Palavra-passe ou codigo errado")
+            fatores["recuperacao"].remove(h)
+        self._escrever_json(self.dois_fatores_f, fatores)
+        acesso["falhas"], acesso["bloqueado_ate"] = 0, 0
+        self._escrever_json(self.acesso_f, acesso)
+        return True, "ok" if passo is not None else f"Codigo de recuperacao usado. Restam {len(fatores['recuperacao'])}."
+
+
+def restringir_a_administradores(caminho):
+    """Na pasta protegida, so Administradores e SYSTEM podem ler o segredo (utilizadores normais nem o veem)."""
+    protegida = Path(os.environ.get("ProgramData", r"C:\ProgramData")).resolve()
+    if os.name != "nt" or protegida not in Path(caminho).resolve().parents:
+        return
+    subprocess.run(["icacls", str(caminho), "/inheritance:r", "/grant:r", "*S-1-5-32-544:F", "*S-1-5-18:F"],
+                   capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def validar_palavra_passe(palavra):
