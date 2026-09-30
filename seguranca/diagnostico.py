@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCRIPT = r"""+$ErrorActionPreference = 'Stop'
+SCRIPT = r"""$ErrorActionPreference = 'Stop'
 $result = @{defender=@{status='unknown'}; firewall=@{status='unknown'}}
 try {
   $mp = Get-MpComputerStatus -ErrorAction Stop

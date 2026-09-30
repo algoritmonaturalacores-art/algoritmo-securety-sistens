@@ -8,7 +8,10 @@ from pathlib import Path
 SOURCE = Path(__file__).resolve().parent
 FILES = ("programa.py", "INICIAR.cmd", "INSTALAR.cmd", "instalar.py", "LE-ME-PRIMEIRO.txt",
          "README.md", "INVESTIGACAO.md", "ARQUITETURA.md", "AGENTES-IA.md", "VALIDACAO.md", "tests/test_programa.py",
-         "seguranca/__init__.py", "seguranca/diagnostico.py", "seguranca/agentes.py", "seguranca/api.py")
+         "seguranca/__init__.py", "seguranca/diagnostico.py", "seguranca/agentes.py", "seguranca/api.py",
+         "seguranca/ps.py", "seguranca/exposicao.py", "seguranca/eventos.py", "seguranca/registo.py",
+         "seguranca/notificar.py", "seguranca/vigilancia.py", "seguranca/endurecer.py", "seguranca/tarefa.py",
+         "tests/test_vigilancia.py", "LICENSE", "SECURITY.md", "CHANGELOG.md")
 
 
 def install(target):
