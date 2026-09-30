@@ -70,10 +70,13 @@ def entrar(registo):
         try:
             ok, mensagem = registo.verificar_palavra_passe(palavra)
         except RegistoError:
-            ok, mensagem = False, "Nao foi possivel verificar (sem permissao de escrita)."
+            ok, mensagem = False, ("A vigilancia protegida esta instalada: abre o programa como administrador "
+                                   "(botao direito > Executar como administrador).")
         if ok:
             return True
         print(mensagem)
+        if "administrador" in mensagem:
+            return False
         try:
             registo.adicionar({"nivel": "aviso", "tipo": "login-programa", "titulo": "Palavra-passe errada no Securety Sistens",
                                "detalhe": f"Tentativa {tentativa} neste computador."})

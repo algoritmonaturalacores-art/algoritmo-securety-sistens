@@ -36,8 +36,12 @@ def ciclo(registo, config, forcar_exposicao=False, ler_eventos=eventos.ler, reco
         novos.append({"nivel": "aviso", "tipo": "sem-admin", "titulo": "Vigilancia sem acesso ao registo de Seguranca",
                       "detalhe": "Tentativas de entrada so sao detetadas com a vigilancia protegida (administrador)."})
         estado["aviso_admin"] = True
-    estado["ultimo_evento"] = (fim - timedelta(seconds=5)).isoformat()
-    estado["registos_vistos"] = [f"{e.get('log')}#{e.get('registo')}" for e in lidos["eventos"]][-2000:]
+    # Se a leitura falhou por completo (ex.: PowerShell demorou demais), a janela de tempo nao avanca:
+    # o proximo ciclo volta a ler estes minutos em vez de os perder.
+    falhou_tudo = any(i.get("log") == "todos" for i in lidos["inacessiveis"])
+    if not falhou_tudo:
+        estado["ultimo_evento"] = (fim - timedelta(seconds=5)).isoformat()
+        estado["registos_vistos"] = [f"{e.get('log')}#{e.get('registo')}" for e in lidos["eventos"]][-2000:]
     ultima = estado.get("ultima_exposicao", 0)
     if forcar_exposicao or time.time() - ultima >= INTERVALO_EXPOSICAO:
         dados = recolher()
@@ -47,15 +51,22 @@ def ciclo(registo, config, forcar_exposicao=False, ler_eventos=eventos.ler, reco
             if base is None:
                 registo.aceitar_linha_base(atual)
             else:
-                novos.extend(exposicao.diferencas(base, atual))
+                # Compara com a ultima fotografia (nao so com a linha de base): cada alteracao alerta uma vez,
+                # em vez de repetir a cada 10 minutos ate ser aceite.
+                anterior = estado.get("ultima_assinatura") or base
+                novos.extend(exposicao.diferencas(anterior, atual))
                 estado["ultima_assinatura"] = atual
         estado["ultima_exposicao"] = time.time()
     registo.guardar_estado({**registo.estado(), **estado})
+    # Todos os alertas ficam registados; so as notificacoes sao limitadas, para nao inundar o ecra.
     registados = []
-    for alerta in sorted(novos, key=lambda a: -notificar.ORDEM.get(a.get("nivel"), 0))[:MAX_ALERTAS_POR_CICLO]:
+    for posicao, alerta in enumerate(sorted(novos, key=lambda a: -notificar.ORDEM.get(a.get("nivel"), 0))):
         registados.append(registo.adicionar(alerta))
-        if alerta.get("nivel") != "info":
+        if alerta.get("nivel") != "info" and posicao < MAX_ALERTAS_POR_CICLO:
             enviar(config, alerta)
+    if len(novos) > MAX_ALERTAS_POR_CICLO:
+        enviar(config, {"nivel": "critico", "titulo": f"{len(novos)} alertas num so ciclo",
+                        "detalhe": "Atividade invulgar. Abre o Securety Sistens para ver todos."})
     return registados
 
 

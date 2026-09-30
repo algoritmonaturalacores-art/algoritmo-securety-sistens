@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,43 @@ BLOQUEIO_SEGUNDOS = 300
 
 class RegistoError(Exception):
     pass
+
+
+@contextmanager
+def _bloqueio(pasta, espera=15.0):
+    """Um so escritor de cada vez (menu 'Vigiar agora' e tarefa agendada podem correr juntos)."""
+    try:
+        f = open(pasta / "alertas.lock", "a+b")
+    except OSError:
+        raise RegistoError(f"Sem permissao para escrever em {pasta}. Abre como administrador.") from None
+    limite = time.monotonic() + espera
+    try:
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    f.seek(0)
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() > limite:
+                    raise RegistoError("Registo de alertas ocupado por outra instancia.") from None
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                import msvcrt
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    finally:
+        f.close()
 
 
 def pasta_estado():
@@ -101,6 +139,11 @@ class Registo:
         return hashlib.sha256((anterior + json.dumps(corpo, sort_keys=True, ensure_ascii=False)).encode("utf-8")).hexdigest()
 
     def adicionar(self, alerta):
+        self._garantir()
+        with _bloqueio(self.pasta):
+            return self._adicionar(alerta)
+
+    def _adicionar(self, alerta):
         linhas = self._linhas_para_escrever()
         anterior = linhas[-1]["hash"] if linhas else INICIO_CADEIA
         registo = {"id": len(linhas) + 1, "registado": datetime.now(timezone.utc).isoformat(),
@@ -118,6 +161,11 @@ class Registo:
         """Marcar nao reescreve alertas antigos: acrescenta um registo de marcacao a cadeia."""
         if estado not in ("visto", "conhecido", "suspeito"):
             raise RegistoError("Estado de marcacao invalido.")
+        self._garantir()
+        with _bloqueio(self.pasta):
+            return self._marcar(ids, estado, nota)
+
+    def _marcar(self, ids, estado, nota):
         linhas = self._linhas_para_escrever()
         existentes = {l["id"] for l in linhas if l.get("tipo_registo") == "alerta"}
         ids = [i for i in ids if i in existentes]

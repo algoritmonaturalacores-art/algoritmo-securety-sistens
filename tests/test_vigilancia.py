@@ -278,5 +278,57 @@ class CorrecoesTests(unittest.TestCase):
             self.assertEqual(list(estado.iterdir()), [])
 
 
+class Correcoes2Tests(unittest.TestCase):
+    SEM_EV = staticmethod(lambda d: {"eventos": [], "inacessiveis": []})
+
+    def _dados(self, portas):
+        return {"portas": [{"porta": p, "processo": "x"} for p in portas], "contas": [], "administradores": [],
+                "arranque": [], "tarefas": [], "servicos": [], "rdp": {"ligado": False}}
+
+    def test_alteracao_de_exposicao_alerta_so_uma_vez(self):
+        registo = Registo(tempfile.mkdtemp())
+        config = {"nivel_notificacao": "critico", "notificar_pc": False}
+        correr = lambda portas: vigilancia.ciclo(registo, config, forcar_exposicao=True, ler_eventos=self.SEM_EV,
+                                                 recolher=lambda: self._dados(portas), enviar=lambda c, a: None)
+        correr([])
+        self.assertEqual(len(correr([4444])), 1)
+        self.assertEqual(correr([4444]), [])
+        self.assertEqual(correr([4444]), [])
+
+    def test_mais_de_50_alertas_nenhum_perdido(self):
+        registo = Registo(tempfile.mkdtemp())
+        enviados = []
+        evs = [ev("Security", 4720, {"TargetUserName": f"u{k}", "SubjectUserName": "a"}, registo=k) for k in range(80)]
+        vigilancia.ciclo(registo, {"nivel_notificacao": "aviso"}, ler_eventos=lambda d: {"eventos": evs, "inacessiveis": []},
+                         recolher=lambda: {"erro_geral": "x"}, enviar=lambda c, a: enviados.append(a))
+        self.assertEqual(len(registo.listar()), 80)
+        self.assertEqual(len(enviados), vigilancia.MAX_ALERTAS_POR_CICLO + 1)
+
+    def test_leitura_falhada_nao_avanca_o_tempo(self):
+        registo = Registo(tempfile.mkdtemp())
+        registo.guardar_estado({"ultimo_evento": "2026-09-30T10:00:00+00:00"})
+        vigilancia.ciclo(registo, {}, ler_eventos=lambda d: {"eventos": [], "inacessiveis": [{"log": "todos", "erro": "timeout"}]},
+                         recolher=lambda: {"erro_geral": "x"}, enviar=lambda c, a: None)
+        self.assertEqual(registo.estado()["ultimo_evento"], "2026-09-30T10:00:00+00:00")
+
+    def test_dois_escritores_em_simultaneo_mantem_a_cadeia(self):
+        import threading
+        pasta = tempfile.mkdtemp()
+        def escrever(nome):
+            r = Registo(pasta)
+            for k in range(15):
+                r.adicionar({"nivel": "info", "titulo": f"{nome}{k}"})
+        fios = [threading.Thread(target=escrever, args=(n,)) for n in "AB"]
+        for f in fios:
+            f.start()
+        for f in fios:
+            f.join()
+        self.assertEqual(Registo(pasta).verificar_cadeia(), (True, 30))
+
+    def test_hora_do_windows_com_7_casas_decimais(self):
+        hora = eventos._hora({"hora": "2026-09-30T10:00:00.1234567Z"})
+        self.assertEqual((hora.hour, hora.microsecond), (10, 123456))
+
+
 if __name__ == "__main__":
     unittest.main()

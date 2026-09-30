@@ -1,5 +1,6 @@
 """Leitura dos registos do Windows e deteccao de tentativas de entrada."""
 import ipaddress
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -70,9 +71,13 @@ def ip_externo(ip):
     return not endereco.is_loopback and not endereco.is_unspecified
 
 
+FRACAO = re.compile(r"(\.\d{6})\d+")
+
+
 def _hora(evento):
+    # O Windows escreve 7 casas decimais; o Python 3.10 so aceita ate 6.
     try:
-        return datetime.fromisoformat(str(evento.get("hora")).replace("Z", "+00:00"))
+        return datetime.fromisoformat(FRACAO.sub(r"\1", str(evento.get("hora")).replace("Z", "+00:00")))
     except ValueError:
         return datetime.now(timezone.utc)
 
