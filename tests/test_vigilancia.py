@@ -229,5 +229,54 @@ class ProtecaoTests(unittest.TestCase):
             ps.executar("1", parametros={"AN_X": "a\x00b"})
 
 
+class CorrecoesTests(unittest.TestCase):
+    def test_ficheiro_de_alertas_corrompido_nao_para_a_vigilancia(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            registo = Registo(pasta)
+            registo.adicionar({"nivel": "aviso", "titulo": "x"})
+            with open(registo.alertas, "a", encoding="utf-8") as f:
+                f.write("{linha partida\n")
+            config = {"nivel_notificacao": "critico", "notificar_pc": False}
+            novos = vigilancia.ciclo(registo, config, ler_eventos=lambda d: {"eventos": [], "inacessiveis": []},
+                                     recolher=lambda: {"erro_geral": "x"}, enviar=lambda c, a: None)
+            self.assertEqual(novos[0]["tipo"], "registo-adulterado")
+            self.assertTrue(list(Path(pasta).glob("alertas.corrompido.*.jsonl")))
+            self.assertEqual(registo.verificar_cadeia()[0], True)
+
+    def test_vigiar_continua_apos_erro_de_registo(self):
+        chamadas = []
+
+        def ciclo_falha(*a, **k):
+            chamadas.append(1)
+            raise RegistoError("falha")
+        with patch.object(vigilancia, "ciclo", ciclo_falha), patch.object(vigilancia.time, "sleep"):
+            vigilancia.vigiar(Registo(tempfile.mkdtemp()), parar=lambda: len(chamadas) >= 3, saida=lambda t: None)
+        self.assertEqual(len(chamadas), 3)
+
+    def test_system32_no_meio_do_caminho_nao_e_seguro(self):
+        self.assertEqual(eventos.nivel_caminho(r"C:\evil\system32\svc.exe"), "aviso")
+        self.assertEqual(eventos.nivel_caminho(r"C:\malware\program files\a.exe"), "aviso")
+        self.assertEqual(eventos.nivel_caminho(r"C:\Windows\System32\svchost.exe"), "info")
+        self.assertEqual(eventos.nivel_caminho(r'"C:\Program Files\App\a.exe" -k x'), "info")
+        self.assertEqual(eventos.nivel_caminho(r"system32\drivers\a.sys"), "info")
+
+    def test_instalar_nao_importa_estado_da_pasta_do_utilizador(self):
+        with tempfile.TemporaryDirectory() as raiz:
+            raiz = Path(raiz)
+            origem, destino, estado, perfil = raiz / "o", raiz / "d", raiz / "e", raiz / "p"
+            for nome in tarefa.FICHEIROS:
+                (origem / nome).parent.mkdir(parents=True, exist_ok=True)
+                (origem / nome).write_text("x")
+            antiga = perfil / "AlgoritmoSecuretySistens"
+            antiga.mkdir(parents=True)
+            for nome in ("config.json", "acesso.json", "linha_base.json"):
+                (antiga / nome).write_text("{}")
+            with patch.object(tarefa, "verificar_requisitos", return_value=[]), patch.object(tarefa, "DESTINO", destino), \
+                    patch.object(tarefa, "ESTADO", estado), patch.object(tarefa, "executar"), \
+                    patch.dict("os.environ", {"LOCALAPPDATA": str(perfil)}):
+                tarefa.instalar(origem)
+            self.assertEqual(list(estado.iterdir()), [])
+
+
 if __name__ == "__main__":
     unittest.main()

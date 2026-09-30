@@ -78,10 +78,8 @@ def instalar(origem):
         (DESTINO / nome).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(origem / nome, DESTINO / nome)
     ESTADO.mkdir(parents=True, exist_ok=True)
-    antiga = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "AlgoritmoSecuretySistens"
-    for nome in ("config.json", "acesso.json", "linha_base.json"):
-        if (antiga / nome).is_file() and not (ESTADO / nome).exists():
-            shutil.copyfile(antiga / nome, ESTADO / nome)
+    # Nada e importado da pasta do utilizador: qualquer programa sem privilegios podia la ter deixado uma linha de
+    # base, palavra-passe ou servidor de notificacoes falsos. A configuracao protegida comeca do zero.
     try:
         executar(REGISTAR, timeout=60, json_saida=False, parametros={
             "AN_PYW": str(pythonw()), "AN_PROG": str(DESTINO / "programa.py"), "AN_DIR": str(DESTINO),

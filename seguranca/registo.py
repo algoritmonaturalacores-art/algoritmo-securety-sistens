@@ -84,13 +84,24 @@ class Registo:
         except (OSError, ValueError):
             raise RegistoError("Ficheiro de alertas ilegivel ou adulterado.") from None
 
+    def _linhas_para_escrever(self):
+        """Ficheiro ilegivel nao pode parar a vigilancia: fica de lado como prova e a cadeia recomeca."""
+        try:
+            return self._linhas()
+        except RegistoError:
+            try:
+                os.replace(self.alertas, self.pasta / f"alertas.corrompido.{int(time.time())}.jsonl")
+            except OSError:
+                raise RegistoError("Ficheiro de alertas ilegivel e sem permissao para o por de lado.") from None
+            return []
+
     @staticmethod
     def _hash(anterior, registo):
         corpo = {k: v for k, v in registo.items() if k != "hash"}
         return hashlib.sha256((anterior + json.dumps(corpo, sort_keys=True, ensure_ascii=False)).encode("utf-8")).hexdigest()
 
     def adicionar(self, alerta):
-        linhas = self._linhas()
+        linhas = self._linhas_para_escrever()
         anterior = linhas[-1]["hash"] if linhas else INICIO_CADEIA
         registo = {"id": len(linhas) + 1, "registado": datetime.now(timezone.utc).isoformat(),
                    "nivel": alerta.get("nivel", "info"), "tipo": alerta.get("tipo", ""), "titulo": alerta.get("titulo", ""),
@@ -107,7 +118,7 @@ class Registo:
         """Marcar nao reescreve alertas antigos: acrescenta um registo de marcacao a cadeia."""
         if estado not in ("visto", "conhecido", "suspeito"):
             raise RegistoError("Estado de marcacao invalido.")
-        linhas = self._linhas()
+        linhas = self._linhas_para_escrever()
         existentes = {l["id"] for l in linhas if l.get("tipo_registo") == "alerta"}
         ids = [i for i in ids if i in existentes]
         if not ids:
@@ -135,7 +146,11 @@ class Registo:
     def verificar_cadeia(self):
         """Devolve (True, n) se intacta; (False, id) no primeiro registo alterado, removido ou reordenado."""
         anterior = INICIO_CADEIA
-        for posicao, linha in enumerate(self._linhas(), 1):
+        try:
+            linhas = self._linhas()
+        except RegistoError:
+            return False, 0
+        for posicao, linha in enumerate(linhas, 1):
             if linha.get("id") != posicao or linha.get("hash") != self._hash(anterior, linha):
                 return False, posicao
             anterior = linha["hash"]
@@ -143,7 +158,7 @@ class Registo:
         guardado = estado.get("ultimo_hash")
         if guardado and guardado != anterior:
             return False, estado.get("total_linhas", 0)
-        return True, len(self._linhas())
+        return True, len(linhas)
 
     def selar(self):
         """Guarda o ultimo hash fora da cadeia para detetar linhas removidas no fim."""

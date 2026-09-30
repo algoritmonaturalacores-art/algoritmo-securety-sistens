@@ -71,6 +71,5 @@ def vigiar(registo=None, parar=None, saida=print):
                 saida(f"[{a['nivel'].upper()}] {a['titulo']} - {a['detalhe'][:150]}")
         except RegistoError as erro:
             saida(str(erro))
-            return
         primeira = False
         time.sleep(intervalo)

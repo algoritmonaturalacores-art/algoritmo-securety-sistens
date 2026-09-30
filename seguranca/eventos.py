@@ -97,7 +97,7 @@ def nivel_caminho(caminho):
     c = caminho.lower().strip('"').lstrip('"')
     if any(p in c for p in PASTAS_UTILIZADOR) and not c.startswith("c:\\programdata\\microsoft\\windows defender\\"):
         return "critico"
-    if any(c.startswith(p) or p in c[:40] for p in PASTAS_PROTEGIDAS):
+    if c.startswith(PASTAS_PROTEGIDAS):
         return "info"
     return "aviso"
 
