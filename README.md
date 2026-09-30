@@ -2,7 +2,7 @@
 
 Nuno Camara Freelancer — Algoritmo Natural Sustentabilidade Digital
 
-Estado: versão experimental 0.1.0 para consola Windows, 24/09/2026. Inclui código executável Python, lançador, instalação por cópia e cinco perfis IA através da API Groq. Não é um antivírus, VPN ou EDR certificado.
+Estado: versão experimental 0.2.0 para consola Windows. Novo na 0.2: vigilância de entradas e tentativas de acesso, alertas com marcação e notificações, login protegido e endurecimento por lista fechada com confirmação (ver CHANGELOG.md e SECURITY.md). Inclui também código Python, lançador, instalação por cópia e cinco perfis IA através da API Groq. Não é um antivírus, VPN ou EDR certificado.
 
 ## Abrir o programa
 
@@ -16,6 +16,8 @@ Criar um centro modular de segurança que ajude a rever contas Google, consultar
 
 ## Documentos
 
+- SECURITY.md: o que o programa faz e não faz; como reportar vulnerabilidades.
+- CHANGELOG.md: alterações por versão.
 - INVESTIGACAO.md: amostra de críticas públicas e requisitos derivados.
 - ARQUITETURA.md: módulos, limites, segurança e critérios de aceitação.
 - AGENTES-IA.md: desenho dos agentes e estado da implementação.

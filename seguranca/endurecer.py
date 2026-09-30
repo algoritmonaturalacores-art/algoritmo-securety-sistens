@@ -17,8 +17,8 @@ GUID_AUDITORIA = {
 ACOES = {
     "rdp": ("Desligar o Ambiente de Trabalho Remoto",
             "Ninguem consegue entrar neste PC por RDP. Podes voltar a ligar em Definicoes > Sistema.",
-            r"Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 1 -Type DWord
-Disable-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue"),
+            r"Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 1 -Type DWord"
+            "\nDisable-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue"),
     "assistencia": ("Desligar a Assistencia Remota",
                     "Deixa de ser possivel receber ajuda remota por convite do Windows.",
                     r"Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name fAllowToGetHelp -Value 0 -Type DWord"),
