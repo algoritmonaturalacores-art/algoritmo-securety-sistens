@@ -4,6 +4,8 @@ import re
 import urllib.error
 import urllib.request
 
+from . import VERSION
+
 ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "openai/gpt-oss-20b"
 MAX_RESPONSE = 262144
@@ -32,7 +34,7 @@ def ask(key, messages, opener=None):
     request = urllib.request.Request(ENDPOINT,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": "Bearer " + key, "Content-Type": "application/json",
-                 "User-Agent": "AlgoritmoSecuretySistens/0.1.0"}, method="POST")
+                 "User-Agent": "AlgoritmoSecuretySistens/" + VERSION}, method="POST")
     client = opener or urllib.request.build_opener(NoRedirect())
     try:
         with client.open(request, timeout=35) as response:

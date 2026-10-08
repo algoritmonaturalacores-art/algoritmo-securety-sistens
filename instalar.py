@@ -5,6 +5,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from seguranca import VERSION
+
 SOURCE = Path(__file__).resolve().parent
 FILES = ("programa.py", "INICIAR.cmd", "INSTALAR.cmd", "instalar.py", "LE-ME-PRIMEIRO.txt",
          "README.md", "INVESTIGACAO.md", "ARQUITETURA.md", "AGENTES-IA.md", "VALIDACAO.md", "tests/test_programa.py",
@@ -43,7 +45,7 @@ def main():
     args = parser.parse_args()
     target = args.destino
     if target is None:
-        default = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "AlgoritmoSecuretySistens-0.1.0"
+        default = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / ("AlgoritmoSecuretySistens-" + VERSION)
         print("Instalacao por copia. Nao instala antivirus, servicos, drivers ou chaves API.")
         print("Destino proposto: " + str(default))
         entered = input("Enter aceita; escreve outro caminho ou CANCELAR: ").strip()

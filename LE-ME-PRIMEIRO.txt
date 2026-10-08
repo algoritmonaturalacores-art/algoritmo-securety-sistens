@@ -1,64 +1,73 @@
-ALGORITMO SECURETY SISTENS - versao experimental 0.1.0
-Nuno Camara Freelancer - Algoritmo Natural Sustentabilidade Digital
+ALGORITMO SECURETY SISTENS - versao experimental 0.2.0
+Nuno Camara | Algoritmo Natural
+
+Vigilancia de entradas e tentativas de acesso para Windows.
+Nao e antivirus, EDR nem VPN. Complementa o Microsoft Defender.
+
+ANTES DE COMECAR
+1. Confirma o SHA-256 do ZIP com o publicado na pagina Releases do GitHub:
+   Get-FileHash .\algoritmo-securety-sistens-0.2.0.zip -Algorithm SHA256
+   Se for diferente, apaga o ficheiro e nao o abras.
+2. Extrai TODOS os ficheiros do ZIP para uma pasta.
+3. Precisas de Python 3.10 ou superior: https://www.python.org/downloads/windows/
+   Durante a instalacao do Python ativa "Add python.exe to PATH".
+   Para a vigilancia automatica (menu 7), escolhe tambem "Install for all users".
 
 COMECAR
-1. Usa esta pasta completa. Se receberes uma copia em ZIP, extrai todos os ficheiros.
-2. Precisas de Python 3.10 ou superior: https://www.python.org/downloads/windows/
-   Durante a instalacao do Python, ativa Add python.exe to PATH.
-3. Abre INICIAR.cmd. Funciona diretamente da pasta, sem instalar outros pacotes.
-4. Se quiseres copiar para uma pasta permanente, abre INSTALAR.cmd.
-   Nao e um instalador EXE assinado. Nao e necessario administrador.
+1. Abre INICIAR.cmd. Na primeira vez defines a palavra-passe do programa.
+   Guarda-a num gestor de palavras-passe: protege os alertas e as alteracoes.
+2. Opcional: INSTALAR.cmd copia o programa para uma pasta permanente
+   (sem administrador).
+3. Para ler o registo Security do Windows e usar os menus 5, 7 e 11,
+   abre o programa como administrador.
 
-OS CINCO AGENTES IA
-Guardiao Google; Analista do Dispositivo; Curador de Integracoes;
-Investigador de Qualidade; Revisor de Seguranca.
-Sao cinco perfis sobre a mesma API Groq, acionados individualmente no menu 3.
-O investigador usa o contexto de pesquisa fornecido; nao pesquisa a internet sozinho.
-Nao ha processos autonomos, remediacao ou monitorizacao em segundo plano.
+MENU
+1  Analise de exposicao (pontuacao 0-100 e o que fazer)
+2  Tentativas de entrada nos registos do Windows
+3  Alertas guardados: ver e marcar (visto / conhecido / suspeito)
+4  Vigiar agora, nesta janela (Ctrl+C para parar)
+5  Endurecer o Windows: lista fechada, cada alteracao pede SIM
+6  Notificacoes no PC e, opcional, no telemovel (app ntfy)
+7  Vigilancia automatica ao iniciar sessao (administrador)
+8  Estado rapido do Defender e firewall
+9  Rever conta Google (enderecos oficiais, revisao manual)
+10 Agente IA Groq (opcional, com a tua chave)
+11 Codigo de 6 digitos para abrir o Claude (precisa do menu 7)
 
-API COM PLANO GRATUITO
-Cria uma conta Free na Groq e gera uma chave em https://console.groq.com/keys
-Nao faças upgrade para um plano pago para este uso. Confirma o plano na consola.
-Seleciona menu 3 e um agente. O programa mostra o conteudo antes de enviar.
-Escreve ENVIAR e introduz a chave quando for pedida. A chave nao aparece no ecra.
-Nao envies a chave para esta conversa nem a escrevas nos ficheiros.
-A chave e usada na memoria e nao e guardada pela aplicacao.
-Python nao garante apagamento criptografico da memoria; fecha o programa no fim.
+O QUE SAI DO TEU PC
+Por omissao, nada.
+- Menu 6, telemovel: titulo e resumo do alerta vao para ntfy.sh (ou um
+  servidor HTTPS teu). Nunca palavras-passe. Desligado por omissao.
+- Menu 10, IA: o texto exato e mostrado antes de enviar e so sai se
+  escreveres ENVIAR. A chave Groq e pedida no momento e nao e guardada.
+  Usa uma conta Groq no plano Free: https://console.groq.com/keys
+  Privacidade do fornecedor: https://console.groq.com/docs/your-data
+  As respostas IA sao orientacao nao verificada e nunca sao executadas.
 
-Modelo configurado: openai/gpt-oss-20b, endpoint Groq Chat Completions.
-Consulta de documentacao em 24/09/2026. Planos e modelos podem mudar.
-O programa nao consegue verificar a faturacao da conta nem impor custo zero
-se usares uma chave associada a plano pago. Gratuitidade depende do plano Free.
-Limite local: uma chamada por pedido, no maximo 1800 tokens de resposta,
-tempo de espera de 35 segundos e nenhuma repeticao automatica.
-Ao atingir limites (HTTP 429), para; nao troca para outro fornecedor/modelo pago.
-Limites: https://console.groq.com/docs/rate-limits
-Modelos: https://console.groq.com/docs/models
-Privacidade do fornecedor: https://console.groq.com/docs/your-data
-
-DADOS E SEGURANCA
-Nao le emails, ficheiros pessoais, passwords, cookies, IPs ou nomes de dispositivos.
-O diagnostico consulta apenas campos de estado do Defender e contagem de perfis firewall.
-No menu IA, o texto apresentado e enviado a Groq; nos agentes dispositivo/revisor,
-inclui os campos de diagnostico permitidos, sem identificadores.
-As respostas IA sao orientacao nao verificada. Nunca sao executadas como comandos.
-Nao ha logs persistentes nem historial de conversas; diagnostico so na sessao.
-Nao ha login Google. O menu Google mostra enderecos oficiais para revisao manual.
-
-LIMITES DESTA VERSAO
-E um assistente de consola, nao uma aplicacao grafica nem antivirus/VPN/EDR.
-Nao inclui os motores Bitwarden, Bitdefender, Norton, Malwarebytes, 1Password,
-Dashlane, Proton VPN, NordVPN, ExpressVPN, CrowdStrike ou SentinelOne.
-O estado Defender nao substitui uma analise de malware e pode estar indisponivel.
-Nenhuma afirmacao de melhor software do mercado, certificacao ou protecao absoluta.
-Os conectores API foram testados com respostas simuladas; falta testar uma chamada
-real com a tua chave. Nao foram utilizadas chaves tuas na preparacao deste pacote.
+ONDE FICAM OS DADOS
+- Alertas e configuracao: %LOCALAPPDATA%\AlgoritmoSecuretySistens
+  ou, com a vigilancia automatica, C:\ProgramData\AlgoritmoNatural\AlgoritmoSecuretySistens
+  (so administradores podem alterar).
+- A palavra-passe e guardada apenas como derivacao PBKDF2, nunca em claro.
 
 DESINSTALAR
-Fecha o programa e elimina apenas a pasta em que o instalaste.
-Nao foram criados servicos, tarefas de arranque, atalhos ou entradas de registo.
+1. Se instalaste a vigilancia automatica: abre o programa como
+   administrador, menu 7, opcao 2 (Remover). Remove a tarefa agendada,
+   a protecao do Claude e a copia em C:\Program Files\AlgoritmoNatural\SecuretySistens.
+2. Apaga a pasta onde extraiste ou instalaste o programa.
+3. Para apagar tambem os alertas, apaga as pastas indicadas em
+   "ONDE FICAM OS DADOS".
+
+LIMITES
+- Sem administrador o registo Security nao pode ser lido.
+- Quem ja tiver administrador no PC pode desligar a vigilancia;
+  o programa deteta e avisa, mas nao impede.
+- Nao procura malware. Nao e um executavel assinado: e codigo Python
+  que podes ler antes de usar.
+
+REPORTAR UMA FALHA DE SEGURANCA
+No GitHub, separador Security, "Report a vulnerability" (privado).
 
 TESTES (PARA QUEM DESENVOLVE)
 python -m unittest discover -s tests -v
 python programa.py --verificar
-python programa.py --diagnostico

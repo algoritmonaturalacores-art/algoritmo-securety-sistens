@@ -9,6 +9,8 @@
 - Novo: endurecimento por lista fechada, com confirmação.
 - Novo: tarefa de vigilância protegida (Program Files + ProgramData com ACL).
 - Corrigido: bug do `+` em diagnostico.py; string por fechar em endurecer.py.
+- Novo: código de 6 dígitos (TOTP, ex.: Ente Auth) para abrir o Claude Code e o Claude Desktop, com códigos de recuperação e bloqueio progressivo.
+- Documentação pública: instalação com verificação SHA-256, o que sai do PC e desinstalação completa.
 - Licença MIT.
 
 ## 0.1.0
